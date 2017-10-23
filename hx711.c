@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <getopt.h>
 
 #define CLOCK_PIN	24
 #define DATA_PIN	25
@@ -80,46 +81,99 @@ int main(int argc, char **argv)
   long reading = 0;
   float calibration_factor = 1;
   int b;
+
+  FILE *out = stdout;
 	
+  static bool verbose = false;
+
+    int c;
+
+  while (1)
+    {
+		static struct option long_options[] = {
+          /* These options set a flag. */
+          {"verbose",    no_argument,       &verbose, true},
+          /* These options don’t set a flag.
+             We distinguish them by their indices. */
+          {"file",       required_argument, 0, 'f'},
+          {"multiplier", required_argument, 0, 'm'},
+          {0, 0, 0, 0}
+        };
+      /* getopt_long stores the option index here. */
+      int option_index = 0;
+
+      c = getopt_long(argc, argv, "af:", long_options, &option_index);
+
+      /* Detect the end of the options. */
+      if (c == -1)
+        break;
+
+      switch (c) {
+        case 0:
+          /* If this option set a flag, do nothing else now. */
+          if (long_options[option_index].flag != 0) {
+            break;
+		  }
+          break;
+
+        case 'f':
+		  out = fopen(optarg, "a");
+		  if (!out) {
+			  perror("fopen");
+		  }
+          break;
+
+        case 'm':
+		  calibration_factor = atof(optarg);
+          break;
+
+        case '?':
+          /* getopt_long already printed an error message. */
+		  exit(1);
+          break;
+
+        default:
+          abort ();
+        }
+	}
+
   setHighPri();
   setup_io();
   setup_gpio();
   reset_converter();
 	
-  if (argc == 2) 
-  {
-    calibration_factor = atof(argv[1]);
-  }
-  else
-  {
-    fprintf(stderr, "Please enter 1 argument - a non-zero positive float value for calibration_factor.\n");
-    exit(1);
-  }	
-
   float tare_a = read_cnt(0, CHANNEL_A_64) / 2;
   float tare_b = read_cnt(0, CHANNEL_B_32);
 
-  fprintf(stderr, "tare A: %f\n", tare_a);
-  fprintf(stderr, "tare B: %f\n", tare_b);
+  if (verbose) {
+	  fprintf(stderr, "tare A: %f\n", tare_a);
+	  fprintf(stderr, "tare B: %f\n", tare_b);
+  }
 
-  float last_a = tare_a;
-  float last_b = tare_b;
+  float last_a = 0;
+  float last_b = 0;
 
   while (true) {
     float reading_a = (read_cnt(0, CHANNEL_A_64) / 2 - tare_a) / calibration_factor;
     float reading_b = (read_cnt(0, CHANNEL_B_32) - tare_b) / calibration_factor;
 
+	if (verbose) {
+        fprintf(stderr, "%lu\tA=%f\tB=%f\ttotal=%f\n", (unsigned long)time(NULL), reading_a, reading_b, reading_a + reading_b);
+	}
+
     if (abs(reading_a - last_a) > 0.25 || abs(reading_b - last_b) > 0.25) {
         last_a = reading_a;
         last_b = reading_b;
 
-        printf("A=%f B=%f total=%f\n", reading_a, reading_b, reading_a + reading_b);
+        fprintf(out, "%lu\tA=%f\tB=%f\ttotal=%f\n", (unsigned long)time(NULL), reading_a, reading_b, reading_a + reading_b);
+		fflush(out);
     }
 
     nanosleep((const struct timespec[]){{1, 0L}}, NULL);
   }
   unpull_pins();
   restore_io();
+  fclose(out);
 }
 	
 
