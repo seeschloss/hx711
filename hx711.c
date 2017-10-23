@@ -6,24 +6,31 @@
 
 #include <stdio.h>
 #include "gb_common.h"
+#include <math.h>
 #include <sched.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <time.h>
 
-#define CLOCK_PIN	31
-#define DATA_PIN	30
-#define N_SAMPLES	64
-#define SPREAD		10
+#define CLOCK_PIN	24
+#define DATA_PIN	25
+
+#define CHANNEL_A_128 0
+#define CHANNEL_A_64  2
+#define CHANNEL_B_32  1
 
 #define SCK_ON  (GPIO_SET0 = (1 << CLOCK_PIN))
 #define SCK_OFF (GPIO_CLR0 = (1 << CLOCK_PIN))
 #define DT_R    (GPIO_IN0  & (1 << DATA_PIN))
 
 void           reset_converter(void);
-unsigned long  read_cnt(long offset, int argc);
+unsigned long  read_cnt(int debug, int channel);
 void           set_gain(int r);
 void           setHighPri (void);
 
+
+long offset=0;
 
 void setHighPri (void)
 {
@@ -58,7 +65,7 @@ void setup_gpio()
    GPIO_PULLCLK0 = 0;*/
 }
 
-void 	unpull_pins()
+void unpull_pins()
 {
    GPIO_PULL = 0;
 //   short_wait();
@@ -68,68 +75,53 @@ void 	unpull_pins()
    GPIO_PULLCLK0 = 0;
 } // unpull_pins
 
-
-
 int main(int argc, char **argv)
 {
-  int i, j;
-  long tmp=0;
-  long tmp_avg=0;
-  long tmp_avg2;
-  long offset=0;
-  float filter_low, filter_high;
-  float spread_percent = SPREAD / 100.0 /2.0;
+  long reading = 0;
+  float calibration_factor = 1;
   int b;
-  int nsamples=N_SAMPLES;
-  long samples[nsamples];
-
-  if (argc == 2) {
-   offset = atol(argv[1]);
-  }
-
+	
   setHighPri();
   setup_io();
   setup_gpio();
   reset_converter();
-
-  j=0;
-
-  // get the dirty samples and average them
-  for(i=0;i<nsamples;i++) {
-  	reset_converter();
-  	samples[i] = read_cnt(0, argc);
-  	tmp_avg += samples[i];
+	
+  if (argc == 2) 
+  {
+    calibration_factor = atof(argv[1]);
   }
+  else
+  {
+    fprintf(stderr, "Please enter 1 argument - a non-zero positive float value for calibration_factor.\n");
+    exit(1);
+  }	
 
-  tmp_avg = tmp_avg / nsamples;
+  float tare_a = read_cnt(0, CHANNEL_A_64) / 2;
+  float tare_b = read_cnt(0, CHANNEL_B_32);
 
-  tmp_avg2 = 0;
-  j=0;
+  fprintf(stderr, "tare A: %f\n", tare_a);
+  fprintf(stderr, "tare B: %f\n", tare_b);
 
-  filter_low =  (float) tmp_avg * (1.0 - spread_percent);
-  filter_high = (float) tmp_avg * (1.0 + spread_percent);
+  float last_a = tare_a;
+  float last_b = tare_b;
 
-//  printf("%d %d\n", (int) filter_low, (int) filter_high);
+  while (true) {
+    float reading_a = (read_cnt(0, CHANNEL_A_64) / 2 - tare_a) / calibration_factor;
+    float reading_b = (read_cnt(0, CHANNEL_B_32) - tare_b) / calibration_factor;
 
-  for(i=0;i<nsamples;i++) {
-	if ((samples[i] < filter_high && samples[i] > filter_low) || 
-            (samples[i] > filter_high && samples[i] < filter_low) ) {
-		tmp_avg2 += samples[i];
-	        j++;
-	}
+    if (abs(reading_a - last_a) > 0.25 || abs(reading_b - last_b) > 0.25) {
+        last_a = reading_a;
+        last_b = reading_b;
+
+        printf("A=%f B=%f total=%f\n", reading_a, reading_b, reading_a + reading_b);
+    }
+
+    nanosleep((const struct timespec[]){{1, 0L}}, NULL);
   }
-
-  if (j == 0) {
-    printf("No data to consider\n");
-    exit(255);
-
-  }
-  printf("%d\n", (tmp_avg2 / j) - offset);
-
-//  printf("average within %f percent: %d from %d samples, original: %d\n", spread_percent*100, (tmp_avg2 / j) - offset, j, tmp_avg - offset);
   unpull_pins();
   restore_io();
 }
+	
 
 
 void reset_converter(void) {
@@ -144,33 +136,33 @@ void set_gain(int r) {
 
 // r = 0 - 128 gain ch a
 // r = 1 - 32  gain ch b
-// r = 2 - 63  gain ch a
+// r = 2 - 64  gain ch a
 
-	while( DT_R ); 
-
-	for (i=0;i<24+r;i++) {
+	for (i=0;i<25+r;i++) {
 		SCK_ON;
 		SCK_OFF;
 	}
 }
 
-
-unsigned long read_cnt(long offset, int argc) {
+unsigned long read_cnt(int debug, int gain) {
 	long count;
 	int i;
 	int b;
 
-
   count = 0;
 
+    reset_converter();
+    set_gain(gain);
 
-  while( DT_R ); 
+  while( DT_R ) {
+    nanosleep((const struct timespec[]){{0, 5000000L}}, NULL); 
+  }
 	b++;
 	b++;
 	b++;
 	b++;
 
-  for(i=0;i<24	; i++) {
+  for(i=0; i<24; i++) {
 	SCK_ON;
         count = count << 1;
 	b++;
@@ -184,8 +176,7 @@ unsigned long read_cnt(long offset, int argc) {
 //	b++;
 //	b++;
   }
-
-
+	
 	SCK_ON;
 	b++;
 	b++;
@@ -200,24 +191,20 @@ unsigned long read_cnt(long offset, int argc) {
 //  count = ~0x800000 & count;
 
 
- if (count & 0x800000) {
+  if (count & 0x800000) {
 	count |= (long) ~0xffffff;
- }
-
-// if things are broken this will show actual data
-
-
-if (argc < 2 ) {
-  for (i=31;i>=0;i--) {
-   printf("%d ", ((count-offset) & ( 1 << i )) != 0 );
   }
 
-  printf("n: %10d     -  ", count - offset);
-  printf("\n"); 
-}
-
-  return (count - offset);
-
+  if (debug) {
+      // If things are broken this will show actual data
+      for (i=31; i>=0; i--) {
+        printf("%d ", ((count - offset) & ( 1 << i )) != 0 );
+      }
+      printf("n: %10d     -  ", count - offset);
+      printf("\n");
+  }
+	
+  return abs(count);
 }
 
 
