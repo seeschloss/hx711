@@ -1,0 +1,11 @@
+[Unit]
+Description=HX711 weight logger
+
+[Service]
+ExecStart=/home/seeschloss/bin/hx711 --multiplier 11500 --file=/home/seeschloss/poids.tsv
+ExecReload=/usr/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
