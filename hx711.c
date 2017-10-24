@@ -80,7 +80,8 @@ void unpull_pins()
 int main(int argc, char **argv)
 {
   long reading = 0;
-  float calibration_factor = 1;
+  float calibration_factor = 1; /* mV/kg */
+  float threshold = 0.25;       /* kg    */
   int b;
 
   FILE *out = stdout;
@@ -98,6 +99,7 @@ int main(int argc, char **argv)
              We distinguish them by their indices. */
           {"file",       required_argument, 0, 'f'},
           {"multiplier", required_argument, 0, 'm'},
+          {"threshold",  required_argument, 0, 't'},
           {0, 0, 0, 0}
         };
       /* getopt_long stores the option index here. */
@@ -127,7 +129,9 @@ int main(int argc, char **argv)
         case 'm':
 		  calibration_factor = atof(optarg);
           break;
-
+        case 't':
+		  threshold = atof(optarg);
+          break;
         case '?':
           /* getopt_long already printed an error message. */
 		  exit(1);
@@ -162,7 +166,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "%lu\tA=%f\tB=%f\ttotal=%f\n", (unsigned long)time(NULL), reading_a, reading_b, reading_a + reading_b);
 	}
 
-    if (abs(reading_a - last_a) > 0.25 || abs(reading_b - last_b) > 0.25) {
+    if (abs(reading_a - last_a) > threshold || abs(reading_b - last_b) > threshold) {
         last_a = reading_a;
         last_b = reading_b;
 
