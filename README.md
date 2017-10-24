@@ -10,7 +10,7 @@ https://github.com/sparkfun/HX711-Load-Cell-Amplifier/blob/master/datasheets/hx7
 It's available for cheap [on Amazon - Weighing Sensor AD Module Dual-channel 24-bit A/D Conversion HX711](https://www.amazon.com/gp/product/B00M6POINC?ie=UTF8&tag=sendmethingie-20&camp=1789&linkCode=xm2&creativeASIN=B00M6POINC) at US$7 now.
 And it works with load cells such as these [4PCS 50Kg Body Load Cell Weighing Sensor Resistance strain Half-bridge](https://www.amazon.com/gp/product/B071ZYYJHJ/ref=as_li_tl?ie=UTF8&tag=sendmethingie-20&camp=1789&creative=9325&linkCode=as2&creativeASIN=B071ZYYJHJ&linkId=9b59bd8bfa4485115fbc566b2fd9982a) currently at US$9 which are the ones I use.
 
-One you have wired the stuff together wire the CLK pin to the Raspberry's BCM24 pin, and the DATA pin to the BCM25 pin. You can use something else of course, but then you'll need to change the values in the source.
+Once you have wired the stuff together, wire the CLK pin to the Raspberry's BCM24 pin and the DATA pin to the BCM25 pin. You can use something else of course, but then you'll need to change the values in the source.
 
 To compile the server, just run:
 
