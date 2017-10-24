@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #define CLOCK_PIN	24
 #define DATA_PIN	25
