@@ -88,44 +88,38 @@ int main(int argc, char **argv)
 	
   static int verbose = false;
 
-    int c;
+  int c;
 
   while (1)
     {
 		static struct option long_options[] = {
-          /* These options set a flag. */
           {"verbose",    no_argument,       &verbose, true},
-          /* These options don’t set a flag.
-             We distinguish them by their indices. */
           {"file",       required_argument, 0, 'f'},
           {"multiplier", required_argument, 0, 'm'},
           {"threshold",  required_argument, 0, 't'},
           {0, 0, 0, 0}
         };
-      /* getopt_long stores the option index here. */
       int option_index = 0;
 
       c = getopt_long(argc, argv, "af:", long_options, &option_index);
 
       /* Detect the end of the options. */
-      if (c == -1)
+      if (c == -1) {
         break;
+	  }
 
       switch (c) {
         case 0:
-          /* If this option set a flag, do nothing else now. */
           if (long_options[option_index].flag != 0) {
             break;
 		  }
           break;
-
         case 'f':
 		  out = fopen(optarg, "a");
 		  if (!out) {
 			  perror("fopen");
 		  }
           break;
-
         case 'm':
 		  calibration_factor = atof(optarg);
           break;
@@ -133,10 +127,8 @@ int main(int argc, char **argv)
 		  threshold = atof(optarg);
           break;
         case '?':
-          /* getopt_long already printed an error message. */
 		  exit(1);
           break;
-
         default:
           abort ();
         }
