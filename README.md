@@ -1,96 +1,44 @@
 HX711
 =====
 
-raspberry pi HX711 weight scale interface
+Raspberry PI HX711 weight scale server
 -----------------------------------------
 
-this thing interfaces with 24-Bit Analog-to-Digital Converter (ADC) for Weigh Scales
+This server reads values from a specialised 24-bit (ADC) for weight scales, hx711. Some documentation can be found here:   
 https://github.com/sparkfun/HX711-Load-Cell-Amplifier/blob/master/datasheets/hx711_english.pdf
 
-http://www.amazon.com/SMAKN-Weighing-Dual-channel-Conversion-Shieding/dp/B00FVGRZ42 = $10
+It's available for cheap [on Amazon - Weighing Sensor AD Module Dual-channel 24-bit A/D Conversion HX711](https://www.amazon.com/gp/product/B00M6POINC?ie=UTF8&tag=sendmethingie-20&camp=1789&linkCode=xm2&creativeASIN=B00M6POINC) at US$7 now.
+And it works with load cells such as these [4PCS 50Kg Body Load Cell Weighing Sensor Resistance strain Half-bridge](https://www.amazon.com/gp/product/B071ZYYJHJ/ref=as_li_tl?ie=UTF8&tag=sendmethingie-20&camp=1789&creative=9325&linkCode=as2&creativeASIN=B071ZYYJHJ&linkId=9b59bd8bfa4485115fbc566b2fd9982a) currently at US$9 which are the ones I use.
 
-Compile by running make, which effectively does: 
-	gcc  -o HX711 HX711.c gb_common.o
+One you have wired the stuff together wire the CLK pin to the Raspberry's BCM24 pin, and the DATA pin to the BCM25 pin. You can use something else of course, but then you'll need to change the values in the source.
 
-Run it like so:
+To compile the server, just run:
 
-First time
+    make
 
-./hx711 
+To run it, you can use the following options:
 
-It will display a bunch of stuff:
+    -v --verbose			print every recorded value
+    
+    -f <file> --file=<file>		write values to file <file>
+    
+    -m <n> --multiplier=<n>		multiplier to get the weight in kilograms from the hx711 output
+                           		mine is 11500 (I guess the unit is in mV/kg or something)
+				
+    -t <n> --threshold=<n>		threshold for considering that the weight has changed, in kg
+                          		default is 0.25 so 250 grams.
+    
 
-root@bare-rasberripi:~/hx711# ./hx711
-0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 0 1 1 1 1 1 1 0 0 n:       7672     -
-0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 1 1 1 1 1 0 n:       8060     -
+You will probably need to experiment a bit before you find the right multiplier for you installation, you can just use water for calibration as 1 L is 1 kg, making it easy to measure if you don't have known weights.
 
-*SNIP* 
+The server monitors both channels continuously, and outputs the separate values, as well as the total. If you wire the sensors by pairs, it can help you determine the front/rear or left/right balance of weight for example. Channel B is less precise, but for my application it's not really an issue.
 
-0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 0 1 1 1 1 1 n:       8126     -
-0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 0 1 1 1 1 1 1 n:       8062     -
-0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 0 0 1 1 1 n:       8142     -
-8038
+At launch, the server takes a first measure and uses it as tare, from then on all output is relative to tare.
 
-The final number is the 2nd average after throwing out out of range readings.
+Values are not filtered in any way, so some are bound to be anomalous because the Raspberry Pi isn't a realtime platform and not entirely adequate for this application.
 
-If there's nothing on the scale, this is the zero, tare, whatever. the number itself is a 24bit representation that comes off the converter.
+A systemd unit file is provided:   
 
-Running it like so:
-
-root@bare-rasberripi:~/hx711# ./hx711 8038
--66
-root@bare-rasberripi:~/hx711# ./hx711 8038
--87
-root@bare-rasberripi:~/hx711# ./hx711 8038
--138
-
-With the argument being the average, removes the debug info, and subtracts the 1st argument from the 2nd average. 
-Effectively, this is the actual weight reading around 0
-
-In the example above, it is negative, which is entirely normal. The load cell will drift 
-depending on temperature and humidity.
-
-To actually be able to convert to any usable reading, you would have to calibrate the scale 
-using a known weight. Easiest thing to do is to use water and a measurement cup. Once you have a few readings at uniform increments
-you can determine how heavy "1" is. 
-
-
-some code has been borrowed from the gertboard distribution to define the memory locations for GPIO_SET, CLR, and IN0, gpio setup, etc. 
-
-at the top of HX711.c there two defines:
-
- #define CLOCK_PIN       31
- #define DATA_PIN        30
- #define N_SAMPLES       64
- #define SPREAD          10
-
-CLOCK pin goes to PD_CLK (pin 11 on HX711, and SCK pin on shield)
-DATA  pin goes to DOUT (pin 12 on HX711, and DT pin on shield)
-N_SAMPLES is the number of samples read from the board
-SPREAD is percentage around the average that defines a valid reading, the readings are averaged twice, first time to get a basic average,
-       and 2nd time to get a better average that's within the SPREAD % (over/under).
-
-on my raspberry PI, i have this hooked up to the unpopulated P5 header (+5v, GND, GPIO30, GPIO31)
-
-I tested this with Etekcifty 5kg scale (http://www.amazon.com/gp/product/B00DGLU1SG = $10)
-open up the scale, gut the electronics, and the battery crap from the case, and you end up with the load cell element, nicely positioned with a base, etc)
-This will work for basically any weight scale you can find, most of the work on the same principle.
-The load cell has 4 wires coming out of, they are colored: red, black, white, green.
-
-The header on HX711 shield are, hook the load cell wires up to 
-E+ - red
-E- - black
-
-A- - green
-A+ - white
-
-I have no idea how to hook it up to 3 wire load cells, normally found in the bathroom floor scales. But there are only 3 wires, so it can't be too difficult.
-
-One note to keep in mind, this code is designed to run at 80 samples per second, the shield comes defaulted to 10 samples per second, This will manifest itself as
-the whole process taking a fairly long time to complete. 
-
-To switch to 80 samples per second, one has to desolder the RATE pin from the pad it's soldered to, lift it and solder it to +vcc on HX711 shield (pin 15). 
-By default, this pin is grounded, which sets HX711 to run at 10 samples per second
-
-Inherent problem with raspberry PI's gpio and talking to something that requires strict timing like the HX711 chip, is that linux running on the raspberry pi 
-is not a realtime operating system. This can cause errors here and there, so there's a few safeguards in the code to reset the chip, etc etc.
+    hx711.service
+    
+You can set your arguments there.
